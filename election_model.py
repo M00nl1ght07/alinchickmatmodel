@@ -130,16 +130,24 @@ class ElectionPredictor:
                     score = model.score(X_test, y_test)
                     print(f"    R² score: {score:.3f}")
     
-    def predict_2026(self):
-        # Создаем данные для прогноза
-        latest_data = self.data[self.data['Year'] == 2021].iloc[0].copy()
+    def predict_2026(self, region='Вся Россия'):
+        """Прогнозирует результаты для 2026 года для конкретного региона"""
+        # Берем последние известные данные для выбранного региона
+        if region == 'Вся Россия':
+            latest_data = self.data[self.data['Year'] == 2021].iloc[0].copy()
+        else:
+            latest_data = self.data[
+                (self.data['Year'] == 2021) & 
+                (self.data['Region'] == region)
+            ].iloc[0].copy()
+        
         prediction_data = latest_data.copy()
         prediction_data['Year'] = 2026
         
-        # Экстраполируем значения
-        prediction_data['GDP'] *= (1.05 ** 5)
-        prediction_data['Average_salary'] *= (1.05 ** 5)
-        prediction_data['Population'] *= (1.001 ** 5)
+        # Экстраполируем значения с учетом региональной специфики
+        prediction_data['GDP'] *= (1.05 ** 5)  # Рост ВВП на 5% в год
+        prediction_data['Average_salary'] *= (1.05 ** 5)  # Рост зарплат на 5% в год
+        prediction_data['Population'] *= (1.001 ** 5)  # Небольшой рост населения
         prediction_data['Population_urban'] *= (1.001 ** 5)
         prediction_data['Population_rural'] *= (1.001 ** 5)
         
@@ -165,6 +173,25 @@ class ElectionPredictor:
                 
                 pred = model_data['model'].predict(X_pred_scaled)[0]
                 predictions[party_name] = max(0, min(100, pred))
+        
+        return predictions
+    
+    def predict_future(self, year, region='Вся Россия'):
+        """Прогнозирует результаты для будущего года"""
+        if year == 2026:
+            return self.predict_2026(region)
+        
+        # Для других лет используем экстраполяцию от 2026
+        predictions_2026 = self.predict_2026(region)
+        years_diff = year - 2026
+        
+        # Простая линейная экстраполяция с учетом региональной специфики
+        predictions = {}
+        for party, value_2026 in predictions_2026.items():
+            # Предполагаем небольшое изменение (±1% в год)
+            change = np.random.uniform(-1, 1) * years_diff
+            pred = value_2026 + change
+            predictions[party] = max(0, min(100, pred))
         
         return predictions
     
@@ -235,25 +262,6 @@ class ElectionPredictor:
         except:
             pass
         return None
-    
-    def predict_future(self, year, region='Вся Россия'):
-        """Прогнозирует результаты для будущего года"""
-        if year == 2026:
-            return self.predict_2026()
-        
-        # Для других лет используем экстраполяцию от 2026
-        predictions_2026 = self.predict_2026()
-        years_diff = year - 2026
-        
-        # Простая линейная экстраполяция
-        predictions = {}
-        for party, value_2026 in predictions_2026.items():
-            # Предполагаем небольшое изменение (±1% в год)
-            change = np.random.uniform(-1, 1) * years_diff
-            pred = value_2026 + change
-            predictions[party] = max(0, min(100, pred))
-        
-        return predictions
 
 class ElectionGUI:
     def __init__(self, predictor):
